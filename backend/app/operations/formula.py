@@ -30,6 +30,7 @@ from typing import Any
 import openpyxl
 from openpyxl.utils import column_index_from_string, get_column_letter
 from openpyxl.utils.cell import coordinate_from_string, range_boundaries
+from openpyxl.utils.exceptions import CellCoordinatesException
 from openpyxl.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -87,7 +88,7 @@ def _parse_range_for_read(worksheet: Worksheet, ref: str) -> tuple[int, int, int
 def _parse_cell_for_write(ref: str) -> tuple[int, int]:
     try:
         column_letter, row = coordinate_from_string(ref)
-    except ValueError as exc:
+    except (ValueError, CellCoordinatesException) as exc:
         raise InvalidRangeError(f"Invalid cell reference '{ref}': {exc}") from exc
     col = column_index_from_string(column_letter)
     _validate_write_bounds(col, row, col, row, ref)

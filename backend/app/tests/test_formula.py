@@ -291,6 +291,18 @@ def test_formula_must_start_with_equals(tmp_path, monkeypatch):
     assert response.status_code == 422
 
 
+def test_formula_function_invalid_cell_returns_400(tmp_path, monkeypatch):
+    monkeypatch.setattr(get_settings(), "STORAGE_DIR", tmp_path)
+
+    file_id = _upload_sheets({"Data": [[1], [2], [3]]})
+
+    response = _apply(
+        file_id, {"sheet_name": "Data", "cell": "not-a-cell", "function": "SUM", "source_range": "A1:A3"}
+    )
+
+    assert response.status_code == 400
+
+
 def test_formula_missing_file_returns_404(tmp_path, monkeypatch):
     monkeypatch.setattr(get_settings(), "STORAGE_DIR", tmp_path)
 
