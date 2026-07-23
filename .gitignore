@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Env files
+.env
+.env.local
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.log
+
+# Storage (runtime data, not source)
+storage/*
+!storage/.gitkeep
+!storage/README.md
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
