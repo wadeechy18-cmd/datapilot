@@ -95,10 +95,12 @@ def test_read_workbook_analysis_returns_summary(tmp_path, monkeypatch):
     sheet1 = next(s for s in body["sheets"] if s["name"] == "Sheet1")
     assert sheet1["row_count"] == 3
     assert sheet1["column_count"] == 3
-    assert sheet1["non_empty_cells"] == 8
-    assert sheet1["empty_cells"] == 1
-    assert sheet1["numeric_cells"] == 1
-    assert sheet1["text_cells"] == 7
+    # Cell stats cover the data rows only (2 rows x 3 cols) -- the header
+    # row is reported separately via `headers`, not double-counted here.
+    assert sheet1["non_empty_cells"] == 6
+    assert sheet1["empty_cells"] == 0
+    assert sheet1["numeric_cells"] == 2
+    assert sheet1["text_cells"] == 4
 
 
 def test_read_workbook_missing_file_returns_404(tmp_path, monkeypatch):
