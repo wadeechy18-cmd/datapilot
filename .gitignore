@@ -16,6 +16,7 @@ node_modules/
 out/
 next-env.d.ts
 *.log
+*.tsbuildinfo
 
 # Storage (runtime data, not source)
 storage/*
