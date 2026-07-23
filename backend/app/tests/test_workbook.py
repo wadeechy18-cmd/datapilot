@@ -80,7 +80,7 @@ def test_read_workbook_returns_structure_for_uppercase_extension(tmp_path, monke
     assert body["sheet_names"] == ["Sheet1", "Empty"]
 
 
-def test_read_workbook_analysis_returns_summary(tmp_path, monkeypatch):
+def test_read_workbook_analysis_returns_column_stats(tmp_path, monkeypatch):
     monkeypatch.setattr(get_settings(), "STORAGE_DIR", tmp_path)
 
     file_id = _upload(_make_xlsx_bytes())
@@ -93,14 +93,56 @@ def test_read_workbook_analysis_returns_summary(tmp_path, monkeypatch):
     assert body["sheet_count"] == 2
 
     sheet1 = next(s for s in body["sheets"] if s["name"] == "Sheet1")
-    assert sheet1["row_count"] == 3
-    assert sheet1["column_count"] == 3
-    # Cell stats cover the data rows only (2 rows x 3 cols) -- the header
-    # row is reported separately via `headers`, not double-counted here.
-    assert sheet1["non_empty_cells"] == 6
-    assert sheet1["empty_cells"] == 0
-    assert sheet1["numeric_cells"] == 2
-    assert sheet1["text_cells"] == 4
+    columns = {c["name"]: c for c in sheet1["columns"]}
+
+    assert columns["Name"]["inferred_type"] == "text"
+    assert columns["Name"]["null_count"] == 0
+    assert columns["Name"]["unique_count"] == 2
+    assert columns["Name"]["min"] is None
+
+    assert columns["Age"]["inferred_type"] == "numeric"
+    assert columns["Age"]["null_count"] == 0
+    assert columns["Age"]["unique_count"] == 2
+    assert columns["Age"]["min"] == 25
+    assert columns["Age"]["max"] == 30
+    assert columns["Age"]["sum"] == 55
+    assert columns["Age"]["mean"] == 27.5
+
+    empty_sheet = next(s for s in body["sheets"] if s["name"] == "Empty")
+    # openpyxl reports a brand-new blank sheet as having 1 column (its
+    # default min_column/max_column), matching column_count in the
+    # Workbook Reader's summary for the same sheet.
+    assert [c["inferred_type"] for c in empty_sheet["columns"]] == ["empty"]
+
+
+def test_read_workbook_analysis_handles_nulls_and_mixed_types(tmp_path, monkeypatch):
+    monkeypatch.setattr(get_settings(), "STORAGE_DIR", tmp_path)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+    ws.append(["Label", "Value"])
+    ws.append(["a", 1])
+    ws.append(["b", None])
+    ws.append(["c", "not a number"])
+    buffer = io.BytesIO()
+    wb.save(buffer)
+
+    file_id = _upload(buffer.getvalue())
+
+    response = client.get(f"/api/v1/workbook/{file_id}/analysis")
+
+    assert response.status_code == 200
+    body = response.json()
+    sheet1 = next(s for s in body["sheets"] if s["name"] == "Sheet1")
+    columns = {c["name"]: c for c in sheet1["columns"]}
+
+    value_col = columns["Value"]
+    assert value_col["inferred_type"] == "mixed"
+    assert value_col["null_count"] == 1
+    assert value_col["unique_count"] == 2
+    assert value_col["min"] is None
+    assert value_col["mean"] is None
 
 
 def test_read_workbook_missing_file_returns_404(tmp_path, monkeypatch):

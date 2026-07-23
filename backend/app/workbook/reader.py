@@ -8,8 +8,6 @@ modify anything — those are separate, later engines (Data Analyzer,
 Cleaning Engine, ...) that will each take a workbook and act on it.
 """
 
-import datetime
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -17,21 +15,9 @@ import openpyxl
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.models.workbook import SheetInfo, WorkbookInfo
+from app.utils.json_safe import to_json_safe
 
 PREVIEW_ROW_COUNT = 10
-
-
-def _to_json_safe(value: Any) -> Any:
-    """openpyxl can hand back types (datetime, Decimal, ...) that aren't
-    directly JSON-serializable. Normalize those; leave the common types
-    (str, int, float, bool, None) as-is."""
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
-        return value.isoformat()
-    if isinstance(value, Decimal):
-        return float(value)
-    return str(value)
 
 
 def _read_sheet(worksheet: Worksheet) -> SheetInfo:
@@ -43,7 +29,7 @@ def _read_sheet(worksheet: Worksheet) -> SheetInfo:
     headers: list[Any] = []
     first_row = next(rows_iter, None)
     if first_row is not None:
-        headers = [_to_json_safe(v) for v in first_row]
+        headers = [to_json_safe(v) for v in first_row]
 
     preview_rows: list[list[Any]] = []
     non_empty_cells = 0
@@ -53,7 +39,7 @@ def _read_sheet(worksheet: Worksheet) -> SheetInfo:
 
     for row in rows_iter:
         if len(preview_rows) < PREVIEW_ROW_COUNT:
-            preview_rows.append([_to_json_safe(v) for v in row])
+            preview_rows.append([to_json_safe(v) for v in row])
 
         for value in row:
             if value is None:

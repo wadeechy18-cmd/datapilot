@@ -24,5 +24,25 @@ class WorkbookSummaryResponse(BaseModel):
     sheets: list[SheetSummary]
 
 
-class WorkbookAnalysisResponse(WorkbookSummaryResponse):
-    pass
+class ColumnStats(BaseModel):
+    name: Any
+    index: int
+    inferred_type: str
+    null_count: int
+    unique_count: int
+    min: Any = None
+    max: Any = None
+    mean: float | None = None
+    sum: float | None = None
+
+
+class SheetAnalysis(BaseModel):
+    name: str
+    columns: list[ColumnStats]
+
+
+class WorkbookAnalysisResponse(BaseModel):
+    file_id: str
+    sheet_count: int
+    sheet_names: list[str]
+    sheets: list[SheetAnalysis]
