@@ -2,7 +2,7 @@
 
 AI-powered Excel automation and analysis platform.
 
-**Current milestone: Phase 1 / Milestone 9 — Export Engine (last of Phase 1).**
+**Current status: Phase 1 (Python Excel Engine) complete. Phase 2 (Web Interface) complete — every engine has a working UI.**
 See `docs/architecture.md` for what's in place and why.
 
 ## Structure
@@ -47,6 +47,10 @@ npm run dev
 ```
 App: http://localhost:3000
 
+Upload an `.xlsx` file to see its sheets as real tables, then use the Clean / Format / Formulas / Chart /
+Export panels below the viewer — each engine's panel previews against the real API before writing changes,
+and committing chains onto the next panel's input automatically.
+
 **Tests**
 ```bash
 cd backend
@@ -54,8 +58,9 @@ pytest
 ```
 
 ## Roadmap
-- **Phase 1** (current): Python Excel engine — foundation, upload, reader,
+- **Phase 1** (done): Python Excel engine — foundation, upload, reader,
   analyzer, cleaning, formatting, formulas, charts, export.
-- **Phase 2**: Web interface.
+- **Phase 2** (done): Web interface — workbook viewer plus a real UI for
+  every Phase 1 engine (Clean/Format/Formulas/Chart/Export).
 - **Phase 3**: AI assistant (chat, summaries, insights, anomaly detection).
 - **Phase 4**: SaaS features (auth, database, payments, dashboard).

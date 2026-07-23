@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { ChartPanel } from "@/components/ChartPanel";
 import { CleaningPanel } from "@/components/CleaningPanel";
+import { ExportPanel } from "@/components/ExportPanel";
 import { FormattingPanel } from "@/components/FormattingPanel";
 import { FormulaPanel } from "@/components/FormulaPanel";
 import { SheetTabs } from "@/components/SheetTabs";
@@ -180,6 +181,10 @@ export default function Home() {
             sheet={currentSheet}
             onApplied={handleEngineCommitted}
           />
+        ) : null}
+
+        {workbook && activeSheet ? (
+          <ExportPanel fileId={workbook.file_id} sheetNames={workbook.sheet_names} activeSheet={activeSheet} />
         ) : null}
       </div>
     </main>
