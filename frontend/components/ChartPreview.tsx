@@ -1,13 +1,15 @@
 // Local, client-side chart approximation shown before a native Excel chart is
 // committed server-side (the reader endpoint has no way to reflect an embedded
 // chart object at all, so this is drawn from the same preview data the form
-// is pointed at). Colors are the validated dark-mode categorical palette from
+// is pointed at). Colors are the validated light-mode categorical palette from
 // the dataviz skill (references/palette.md), checked with
-// scripts/validate_palette.js --mode dark --surface #1a1a19 (all checks pass).
-const SERIES_1 = "#3987e5";
-const CATEGORICAL = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"];
-const GRIDLINE = "#2c2c2a";
-const AXIS = "#383835";
+// scripts/validate_palette.js --mode light --surface #ffffff (all checks pass;
+// 3 of the 8 slots warn below 3:1 contrast on white, mitigated by the direct
+// value labels the pie legend already renders).
+const SERIES_1 = "#2a78d6";
+const CATEGORICAL = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"];
+const GRIDLINE = "#e1e0d9";
+const AXIS = "#c3c2b7";
 const MUTED = "#898781";
 
 const WIDTH = 360;
@@ -123,17 +125,17 @@ function PieChart({ categories, values }: { categories: string[]; values: number
     <div className="flex items-center gap-4">
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="h-auto w-full max-w-[220px]">
         {slices.map((slice, i) => (
-          <path key={i} d={slice.path} fill={slice.color} stroke="#0f172a" strokeWidth={1} />
+          <path key={i} d={slice.path} fill={slice.color} stroke="#ffffff" strokeWidth={2} />
         ))}
       </svg>
-      <ul className="space-y-1 text-xs text-slate-300">
+      <ul className="space-y-1 text-xs text-neutral-700">
         {categories.slice(0, 8).map((label, i) => (
           <li key={i} className="flex items-center gap-2">
             <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: CATEGORICAL[i % CATEGORICAL.length] }} />
             {formatLabel(label, 14)} ({values[i]})
           </li>
         ))}
-        {categories.length > 8 ? <li className="text-slate-500">+{categories.length - 8} more</li> : null}
+        {categories.length > 8 ? <li className="text-neutral-400">+{categories.length - 8} more</li> : null}
       </ul>
     </div>
   );

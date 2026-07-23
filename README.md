@@ -2,7 +2,8 @@
 
 AI-powered Excel automation and analysis platform.
 
-**Current status: Phase 1 (Python Excel Engine) complete. Phase 2 (Web Interface) complete — every engine has a working UI.**
+**Current status: Phase 1 (Python Excel Engine) complete. Phase 2 (Web Interface) complete — a real Excel-like
+workspace (ribbon, formula bar, selectable grid, status bar) driving every Phase 1 engine.**
 See `docs/architecture.md` for what's in place and why.
 
 ## Structure
@@ -47,9 +48,12 @@ npm run dev
 ```
 App: http://localhost:3000
 
-Upload an `.xlsx` file to see its sheets as real tables, then use the Clean / Format / Formulas / Chart /
-Export panels below the viewer — each engine's panel previews against the real API before writing changes,
-and committing chains onto the next panel's input automatically.
+Upload an `.xlsx` file to get a real spreadsheet workspace: click/drag/keyboard-select cells in the grid, edit
+a cell's formula directly in the formula bar, or use the ribbon's File/Home/Insert/Formulas/Data tabs — each
+ribbon action targets your current grid selection, previews against the real API before writing changes, and
+committing chains onto the next action automatically. Known, deliberate limits: only the first 10 data rows are
+loaded (matches the reader's preview cap) and only formula-bar edits can write an arbitrary cell value (no
+general cell-editing endpoint exists yet).
 
 **Tests**
 ```bash

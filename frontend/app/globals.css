@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --grid-line: #d0d7de;
+  --selection-border: #107c41;
+  --selection-fill: rgba(33, 115, 70, 0.08);
+}
+
+body {
+  @apply bg-white font-sans text-neutral-900;
+}

@@ -2,20 +2,19 @@
 
 import { useState } from "react";
 
+import { useEngineAction } from "@/hooks/useEngineAction";
 import type { CleaningRequest, CleaningResponse, FillNullsStrategy } from "@/lib/types";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type NullHandling = "none" | "drop" | "fill";
 
-type CleaningPanelProps = {
+type DataTabProps = {
   fileId: string;
   sheetNames: string[];
   activeSheet: string;
   onCommitted: (newFileId: string) => void;
 };
 
-export function CleaningPanel({ fileId, sheetNames, activeSheet, onCommitted }: CleaningPanelProps) {
+export function DataTab({ fileId, sheetNames, activeSheet, onCommitted }: DataTabProps) {
   const [applyToAllSheets, setApplyToAllSheets] = useState(false);
   const [trimWhitespace, setTrimWhitespace] = useState(false);
   const [dropEmptyRows, setDropEmptyRows] = useState(false);
@@ -25,9 +24,10 @@ export function CleaningPanel({ fileId, sheetNames, activeSheet, onCommitted }: 
   const [fillStrategy, setFillStrategy] = useState<FillNullsStrategy>("zero");
   const [placeholder, setPlaceholder] = useState("");
 
-  const [isRunning, setIsRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<CleaningResponse | null>(null);
+  const { isRunning, result, error, run } = useEngineAction<CleaningRequest, CleaningResponse>(
+    `/workbook/${fileId}/clean`,
+    onCommitted
+  );
 
   const buildRequest = (): CleaningRequest => ({
     sheet_name: applyToAllSheets ? null : activeSheet,
@@ -42,57 +42,27 @@ export function CleaningPanel({ fileId, sheetNames, activeSheet, onCommitted }: 
         : null,
   });
 
-  const run = async (commit: boolean) => {
-    setIsRunning(true);
-    setError(null);
-    if (!commit) {
-      setResult(null);
-    }
-
-    try {
-      const url = `${API_BASE_URL}/api/v1/workbook/${fileId}/clean${commit ? "?commit=true" : ""}`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildRequest()),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.detail ?? "Cleaning request failed.");
-      }
-
-      setResult(payload);
-      if (commit && payload.new_file_id) {
-        onCommitted(payload.new_file_id);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error.");
-    } finally {
-      setIsRunning(false);
-    }
-  };
-
   const targetedSheet = result?.sheets.find((sheet) => sheet.name === activeSheet) ?? null;
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-8 shadow-xl">
-      <h2 className="text-xl font-semibold">Clean data</h2>
-      <p className="mt-1 text-sm text-slate-400">
-        Applies to sheet <span className="font-medium text-slate-200">{applyToAllSheets ? "all sheets" : activeSheet}</span>.
-        Preview first, then apply to write a cleaned copy.
+    <div className="p-4">
+      <p className="text-sm text-neutral-500">
+        Applies to sheet <span className="font-medium text-neutral-800">{applyToAllSheets ? "all sheets" : activeSheet}</span>.
+        Preview first, then apply to write a cleaned copy. Not selection-driven — cleaning always targets a whole
+        sheet (or all sheets), never an arbitrary range.
       </p>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm text-slate-200">
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
             <input type="checkbox" checked={trimWhitespace} onChange={(e) => setTrimWhitespace(e.target.checked)} />
             Trim whitespace
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
             <input type="checkbox" checked={dropEmptyRows} onChange={(e) => setDropEmptyRows(e.target.checked)} />
             Drop empty rows
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
             <input
               type="checkbox"
               checked={dropEmptyColumns}
@@ -100,7 +70,7 @@ export function CleaningPanel({ fileId, sheetNames, activeSheet, onCommitted }: 
             />
             Drop empty columns
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
             <input
               type="checkbox"
               checked={dropDuplicateRows}
@@ -109,7 +79,7 @@ export function CleaningPanel({ fileId, sheetNames, activeSheet, onCommitted }: 
             Drop duplicate rows
           </label>
           {sheetNames.length > 1 ? (
-            <label className="flex items-center gap-2 text-sm text-slate-200">
+            <label className="flex items-center gap-2 text-sm text-neutral-800">
               <input
                 type="checkbox"
                 checked={applyToAllSheets}
@@ -121,8 +91,8 @@ export function CleaningPanel({ fileId, sheetNames, activeSheet, onCommitted }: 
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-300">Missing values</p>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
+          <p className="text-sm font-medium text-neutral-700">Missing values</p>
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
             <input
               type="radio"
               name="null-handling"
@@ -131,7 +101,7 @@ export function CleaningPanel({ fileId, sheetNames, activeSheet, onCommitted }: 
             />
             Leave as-is
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
             <input
               type="radio"
               name="null-handling"
@@ -140,7 +110,7 @@ export function CleaningPanel({ fileId, sheetNames, activeSheet, onCommitted }: 
             />
             Drop rows with any missing value
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
             <input
               type="radio"
               name="null-handling"
@@ -155,7 +125,7 @@ export function CleaningPanel({ fileId, sheetNames, activeSheet, onCommitted }: 
               <select
                 value={fillStrategy}
                 onChange={(e) => setFillStrategy(e.target.value as FillNullsStrategy)}
-                className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+                className="rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
               >
                 <option value="zero">Zero (numeric columns)</option>
                 <option value="mean">Mean (numeric columns)</option>
@@ -168,7 +138,7 @@ export function CleaningPanel({ fileId, sheetNames, activeSheet, onCommitted }: 
                   value={placeholder}
                   onChange={(e) => setPlaceholder(e.target.value)}
                   placeholder="e.g. N/A"
-                  className="block w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+                  className="block w-full rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
                 />
               ) : null}
             </div>
@@ -176,30 +146,30 @@ export function CleaningPanel({ fileId, sheetNames, activeSheet, onCommitted }: 
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className="mt-4 flex flex-wrap gap-3">
         <button
           type="button"
           disabled={isRunning}
-          onClick={() => run(false)}
-          className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => run(buildRequest(), false)}
+          className="rounded border border-neutral-300 bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isRunning ? "Working..." : "Preview"}
         </button>
         <button
           type="button"
           disabled={isRunning || !result}
-          onClick={() => run(true)}
-          className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+          onClick={() => run(buildRequest(), true)}
+          className="rounded bg-excel-green px-4 py-2 text-sm font-semibold text-white transition hover:bg-excel-greenDark disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500"
         >
           Apply (write new file)
         </button>
       </div>
 
-      {error ? <p className="mt-4 text-sm text-rose-400">{error}</p> : null}
+      {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
 
       {targetedSheet ? (
-        <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/80 p-4 text-sm text-slate-200">
-          <p className="font-medium text-slate-100">Preview: {targetedSheet.name}</p>
+        <div className="mt-4 rounded border border-excel-gridline bg-neutral-50 p-4 text-sm text-neutral-800">
+          <p className="font-medium text-neutral-900">Preview: {targetedSheet.name}</p>
           <div className="mt-2 grid gap-2 sm:grid-cols-3">
             <div>
               Rows: {targetedSheet.original_row_count} → {targetedSheet.cleaned_row_count} (

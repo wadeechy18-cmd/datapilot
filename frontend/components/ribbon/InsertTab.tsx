@@ -1,41 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ChartPreview, type ChartPreviewData } from "@/components/ChartPreview";
-import { parseRange, type RangeBounds } from "@/lib/range";
-import type { CellValue, ChartRequest, ChartResponse, ChartType, SheetSummary } from "@/lib/types";
+import { useEngineAction } from "@/hooks/useEngineAction";
+import { API_BASE_URL } from "@/lib/api";
+import { parseRange, selectionToRangeRef, type RangeBounds, type SelectionRange } from "@/lib/range";
+import { cellAt, toNumber } from "@/lib/selectionStats";
+import type { ChartRequest, ChartResponse, ChartType, SheetSummary } from "@/lib/types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-type ChartPanelProps = {
+type InsertTabProps = {
   fileId: string;
   activeSheet: string;
   sheet: SheetSummary;
+  selection: SelectionRange;
   onApplied: (newFileId: string) => void;
 };
 
-function cellAt(sheet: SheetSummary, row: number, col: number): CellValue {
-  if (row === 1) return sheet.headers[col - 1] ?? null;
-  return sheet.preview_rows[row - 2]?.[col - 1] ?? null;
-}
-
-function extractColumn(sheet: SheetSummary, bounds: RangeBounds, col: number): CellValue[] {
-  const values: CellValue[] = [];
+function extractColumn(sheet: SheetSummary, bounds: RangeBounds, col: number) {
+  const values = [];
   for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
     values.push(cellAt(sheet, r, col));
   }
   return values;
-}
-
-function toNumber(value: CellValue): number | null {
-  if (typeof value === "number") return value;
-  if (typeof value === "boolean") return value ? 1 : 0;
-  if (typeof value === "string") {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
 }
 
 function buildPreviewData(sheet: SheetSummary, request: ChartRequest): ChartPreviewData | null {
@@ -80,7 +67,7 @@ function buildPreviewData(sheet: SheetSummary, request: ChartRequest): ChartPrev
   return { kind: "categorical", chartType: request.chart_type, categories: trimmedCategories, values: trimmedValues };
 }
 
-export function ChartPanel({ fileId, activeSheet, sheet, onApplied }: ChartPanelProps) {
+export function InsertTab({ fileId, activeSheet, sheet, selection, onApplied }: InsertTabProps) {
   const [chartType, setChartType] = useState<ChartType>("bar");
   const [anchor, setAnchor] = useState("E2");
   const [title, setTitle] = useState("");
@@ -90,11 +77,21 @@ export function ChartPanel({ fileId, activeSheet, sheet, onApplied }: ChartPanel
   const [xRange, setXRange] = useState("");
   const [yRange, setYRange] = useState("");
 
-  const [isRunning, setIsRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ChartResponse | null>(null);
   const [previewData, setPreviewData] = useState<ChartPreviewData | null>(null);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+
+  const { isRunning, result, error, run } = useEngineAction<ChartRequest, ChartResponse>(
+    `/workbook/${fileId}/chart`,
+    onApplied
+  );
+
+  // Keep the data range in sync with the grid selection -- still hand-editable
+  // afterward, and left untouched for "all" (a whole-sheet selection isn't a
+  // well-defined single chart data column).
+  useEffect(() => {
+    const rangeRef = selectionToRangeRef(selection);
+    if (rangeRef) setDataRange(rangeRef);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection]);
 
   const isScatter = chartType === "scatter";
   const isReady = isScatter ? xRange.trim() !== "" && yRange.trim() !== "" : dataRange.trim() !== "";
@@ -110,54 +107,31 @@ export function ChartPanel({ fileId, activeSheet, sheet, onApplied }: ChartPanel
     y_range: isScatter ? yRange.trim() : undefined,
   });
 
-  const run = async (commit: boolean) => {
-    setIsRunning(true);
-    setError(null);
-    setDownloadUrl(null);
-
-    try {
-      const request = buildRequest();
-      const url = `${API_BASE_URL}/api/v1/workbook/${fileId}/chart${commit ? "?commit=true" : ""}`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(request),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.detail ?? "Chart request failed.");
-      }
-
-      setResult(payload);
+  const handleRun = async (commit: boolean) => {
+    const request = buildRequest();
+    const response = await run(request, commit);
+    if (response) {
       setPreviewData(buildPreviewData(sheet, request));
-
-      if (commit && payload.new_file_id) {
-        setDownloadUrl(`${API_BASE_URL}/api/v1/workbook/${payload.new_file_id}/export/xlsx`);
-        onApplied(payload.new_file_id);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error.");
-    } finally {
-      setIsRunning(false);
     }
   };
 
+  const downloadUrl = result?.new_file_id ? `${API_BASE_URL}/api/v1/workbook/${result.new_file_id}/export/xlsx` : null;
+
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-8 shadow-xl">
-      <h2 className="text-xl font-semibold">Chart</h2>
-      <p className="mt-1 text-sm text-slate-400">
-        Applies to sheet <span className="font-medium text-slate-200">{activeSheet}</span>. The workbook viewer above
+    <div className="p-4">
+      <p className="text-sm text-neutral-500">
+        Applies to sheet <span className="font-medium text-neutral-800">{activeSheet}</span>. The workbook viewer above
         can&apos;t show an embedded chart object at all, so the preview below is a local approximation drawn from the
         same preview rows (first 10) — the applied chart uses the full range and is a real, editable Excel chart.
       </p>
 
       <div className="mt-4 flex flex-wrap items-end gap-4">
-        <label className="block text-sm text-slate-200">
+        <label className="block text-sm text-neutral-800">
           Chart type
           <select
             value={chartType}
             onChange={(e) => setChartType(e.target.value as ChartType)}
-            className="mt-1 block rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+            className="mt-1 block rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
           >
             <option value="bar">Bar</option>
             <option value="line">Line</option>
@@ -166,110 +140,110 @@ export function ChartPanel({ fileId, activeSheet, sheet, onApplied }: ChartPanel
             <option value="scatter">Scatter</option>
           </select>
         </label>
-        <label className="block text-sm text-slate-200">
+        <label className="block text-sm text-neutral-800">
           Anchor cell
           <input
             type="text"
             value={anchor}
             onChange={(e) => setAnchor(e.target.value)}
-            className="mt-1 block w-20 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+            className="mt-1 block w-20 rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
           />
         </label>
-        <label className="block flex-1 text-sm text-slate-200">
+        <label className="block flex-1 text-sm text-neutral-800">
           Title (optional)
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Revenue by region"
-            className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+            className="mt-1 block w-full rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
           />
         </label>
       </div>
 
       {isScatter ? (
         <div className="mt-4 flex flex-wrap gap-4">
-          <label className="block text-sm text-slate-200">
+          <label className="block text-sm text-neutral-800">
             X range
             <input
               type="text"
               value={xRange}
               onChange={(e) => setXRange(e.target.value)}
               placeholder="e.g. A2:A4"
-              className="mt-1 block w-32 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+              className="mt-1 block w-32 rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
             />
           </label>
-          <label className="block text-sm text-slate-200">
+          <label className="block text-sm text-neutral-800">
             Y range
             <input
               type="text"
               value={yRange}
               onChange={(e) => setYRange(e.target.value)}
               placeholder="e.g. B2:B4"
-              className="mt-1 block w-32 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+              className="mt-1 block w-32 rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
             />
           </label>
         </div>
       ) : (
         <div className="mt-4 flex flex-wrap gap-4">
-          <label className="block text-sm text-slate-200">
-            Data range {chartType === "pie" ? "(single column)" : ""}
+          <label className="block text-sm text-neutral-800">
+            Data range (from grid selection) {chartType === "pie" ? "(single column)" : ""}
             <input
               type="text"
               value={dataRange}
               onChange={(e) => setDataRange(e.target.value)}
               placeholder="e.g. B1:B4"
-              className="mt-1 block w-32 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+              className="mt-1 block w-32 rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
             />
           </label>
-          <label className="block text-sm text-slate-200">
+          <label className="block text-sm text-neutral-800">
             Categories range (optional)
             <input
               type="text"
               value={categoriesRange}
               onChange={(e) => setCategoriesRange(e.target.value)}
               placeholder="e.g. A2:A4"
-              className="mt-1 block w-32 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+              className="mt-1 block w-32 rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
             />
           </label>
         </div>
       )}
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
           disabled={isRunning || !isReady}
-          onClick={() => run(false)}
-          className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => handleRun(false)}
+          className="rounded border border-neutral-300 bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isRunning ? "Working..." : "Preview"}
         </button>
         <button
           type="button"
           disabled={isRunning || !result}
-          onClick={() => run(true)}
-          className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+          onClick={() => handleRun(true)}
+          className="rounded bg-excel-green px-4 py-2 text-sm font-semibold text-white transition hover:bg-excel-greenDark disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500"
         >
           Apply (write new file)
         </button>
         {downloadUrl ? (
-          <a href={downloadUrl} className="text-sm font-medium text-cyan-400 underline hover:text-cyan-300">
+          <a href={downloadUrl} className="text-sm font-medium text-excel-green underline hover:text-excel-greenDark">
             Download .xlsx
           </a>
         ) : null}
       </div>
 
-      {error ? <p className="mt-4 text-sm text-rose-400">{error}</p> : null}
+      {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
 
       {result ? (
-        <p className="mt-4 text-sm text-slate-300">
-          {result.chart_type} chart anchored at <span className="font-medium text-slate-100">{result.anchor}</span>
+        <p className="mt-4 text-sm text-neutral-700">
+          {result.chart_type} chart anchored at <span className="font-medium text-neutral-900">{result.anchor}</span>
           {result.title ? <> — &ldquo;{result.title}&rdquo;</> : null}.
         </p>
       ) : null}
 
       {previewData ? (
-        <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+        <div className="mt-4 rounded border border-excel-gridline bg-neutral-50 p-4">
           <ChartPreview data={previewData} />
         </div>
       ) : null}

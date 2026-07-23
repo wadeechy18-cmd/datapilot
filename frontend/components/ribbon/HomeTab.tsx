@@ -2,14 +2,13 @@
 
 import { useState, type CSSProperties } from "react";
 
-import { parseRange } from "@/lib/range";
+import { useEngineAction } from "@/hooks/useEngineAction";
+import { API_BASE_URL } from "@/lib/api";
+import { selectionBounds, selectionToRangeRef, type SelectionRange } from "@/lib/range";
 import type { FormattingRequest, FormattingResponse } from "@/lib/types";
-import type { CellStyleOverride } from "@/components/WorkbookTable";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import type { CellStyleOverride } from "@/components/SheetGrid";
 
 type TriState = "unset" | "on" | "off";
-type TargetMode = "whole" | "header" | "range";
 
 const NUMBER_FORMAT_PRESETS = [
   { label: "No change", value: "" },
@@ -22,25 +21,25 @@ const NUMBER_FORMAT_PRESETS = [
 
 const BORDER_WIDTH_PX: Record<string, number> = { thin: 1, medium: 2, thick: 3 };
 
-type FormattingPanelProps = {
+type HomeTabProps = {
   fileId: string;
   activeSheet: string;
+  selection: SelectionRange;
   onApplied: (newFileId: string) => void;
   onPreview: (override: CellStyleOverride | null) => void;
 };
 
-export function FormattingPanel({ fileId, activeSheet, onApplied, onPreview }: FormattingPanelProps) {
-  const [targetMode, setTargetMode] = useState<TargetMode>("whole");
-  const [rangeInput, setRangeInput] = useState("");
+export function HomeTab({ fileId, activeSheet, selection, onApplied, onPreview }: HomeTabProps) {
+  const [headerRowOnly, setHeaderRowOnly] = useState(false);
 
   const [bold, setBold] = useState<TriState>("unset");
   const [italic, setItalic] = useState<TriState>("unset");
   const [fontSize, setFontSize] = useState("");
 
   const [useFontColor, setUseFontColor] = useState(false);
-  const [fontColor, setFontColor] = useState("#38bdf8");
+  const [fontColor, setFontColor] = useState("#217346");
   const [useFillColor, setUseFillColor] = useState(false);
-  const [fillColor, setFillColor] = useState("#0f172a");
+  const [fillColor, setFillColor] = useState("#ffff00");
 
   const [numberFormatPreset, setNumberFormatPreset] = useState("");
   const [customNumberFormat, setCustomNumberFormat] = useState("");
@@ -49,12 +48,15 @@ export function FormattingPanel({ fileId, activeSheet, onApplied, onPreview }: F
   const [verticalAlignment, setVerticalAlignment] = useState("");
 
   const [borderStyle, setBorderStyle] = useState("");
-  const [borderColor, setBorderColor] = useState("#475569");
+  const [borderColor, setBorderColor] = useState("#000000");
 
-  const [isRunning, setIsRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<FormattingResponse | null>(null);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const { isRunning, result, error, run } = useEngineAction<FormattingRequest, FormattingResponse>(
+    `/workbook/${fileId}/format`,
+    onApplied
+  );
+
+  const selectionRangeRef = selection.kind === "all" ? null : selectionToRangeRef(selection);
+  const targetDescription = headerRowOnly ? "header row" : selectionRangeRef ?? "whole sheet";
 
   const numberFormat = numberFormatPreset === "custom" ? customNumberFormat : numberFormatPreset || undefined;
 
@@ -69,12 +71,10 @@ export function FormattingPanel({ fileId, activeSheet, onApplied, onPreview }: F
     verticalAlignment !== "" ||
     borderStyle !== "";
 
-  const targetIsValid = targetMode !== "range" || parseRange(rangeInput.trim()) !== null;
-
   const buildRequest = (): FormattingRequest => ({
     sheet_name: activeSheet,
-    range: targetMode === "range" ? rangeInput.trim() : undefined,
-    header_row: targetMode === "header",
+    range: headerRowOnly ? undefined : selectionRangeRef ?? undefined,
+    header_row: headerRowOnly,
     bold: bold === "unset" ? undefined : bold === "on",
     italic: italic === "unset" ? undefined : italic === "on",
     font_size: fontSize.trim() !== "" ? Number(fontSize) : undefined,
@@ -100,98 +100,54 @@ export function FormattingPanel({ fileId, activeSheet, onApplied, onPreview }: F
       style.border = `${BORDER_WIDTH_PX[borderStyle] ?? 1}px solid ${borderColor}`;
     }
 
-    if (targetMode === "header") return { target: { kind: "header" }, style };
-    if (targetMode === "whole") return { target: { kind: "whole" }, style };
-    const bounds = parseRange(rangeInput.trim());
-    if (!bounds) return null;
+    if (headerRowOnly) return { target: { kind: "header" }, style };
+    const bounds = selectionBounds(selection);
+    if (!bounds) return { target: { kind: "whole" }, style };
     return { target: { kind: "range", bounds }, style };
   };
 
-  const run = async (commit: boolean) => {
-    setIsRunning(true);
-    setError(null);
-    setDownloadUrl(null);
-
-    try {
-      const url = `${API_BASE_URL}/api/v1/workbook/${fileId}/format${commit ? "?commit=true" : ""}`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildRequest()),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.detail ?? "Formatting request failed.");
-      }
-
-      setResult(payload);
+  const handleRun = async (commit: boolean) => {
+    const request = buildRequest();
+    const response = await run(request, commit);
+    if (response) {
       onPreview(buildStyleOverride());
-
-      if (commit && payload.new_file_id) {
-        setDownloadUrl(`${API_BASE_URL}/api/v1/workbook/${payload.new_file_id}/export/xlsx`);
-        onApplied(payload.new_file_id);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error.");
-    } finally {
-      setIsRunning(false);
     }
   };
 
+  const downloadUrl = result?.new_file_id ? `${API_BASE_URL}/api/v1/workbook/${result.new_file_id}/export/xlsx` : null;
+
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-8 shadow-xl">
-      <h2 className="text-xl font-semibold">Format cells</h2>
-      <p className="mt-1 text-sm text-slate-400">
-        Applies to sheet <span className="font-medium text-slate-200">{activeSheet}</span>. Preview shows an
-        approximation in the table above; apply to write real Excel formatting to a new file.
+    <div className="p-4">
+      <p className="text-sm text-neutral-500">
+        Applies to <span className="font-medium text-neutral-800">{targetDescription}</span> on sheet{" "}
+        <span className="font-medium text-neutral-800">{activeSheet}</span> — select cells in the grid above to
+        change the target. Preview shows an approximation in the grid; apply to write real Excel formatting to a
+        new file.
       </p>
 
       <div className="mt-4 grid gap-6 sm:grid-cols-2">
         <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-300">Target</p>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
-            <input type="radio" name="target" checked={targetMode === "whole"} onChange={() => setTargetMode("whole")} />
-            Whole sheet
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
+            <input type="checkbox" checked={headerRowOnly} onChange={(e) => setHeaderRowOnly(e.target.checked)} />
+            Header row only (ignores grid selection)
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
-            <input
-              type="radio"
-              name="target"
-              checked={targetMode === "header"}
-              onChange={() => setTargetMode("header")}
-            />
-            Header row only
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
-            <input type="radio" name="target" checked={targetMode === "range"} onChange={() => setTargetMode("range")} />
-            Custom range
-          </label>
-          {targetMode === "range" ? (
-            <input
-              type="text"
-              value={rangeInput}
-              onChange={(e) => setRangeInput(e.target.value)}
-              placeholder="e.g. A1:C10"
-              className="ml-6 block w-40 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
-            />
-          ) : null}
 
-          <p className="pt-2 text-sm font-medium text-slate-300">Font</p>
-          <div className="flex items-center gap-3 text-sm text-slate-200">
+          <p className="pt-2 text-sm font-medium text-neutral-700">Font</p>
+          <div className="flex items-center gap-3 text-sm text-neutral-800">
             <label>Bold</label>
-            <select value={bold} onChange={(e) => setBold(e.target.value as TriState)} className="rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-sm">
+            <select value={bold} onChange={(e) => setBold(e.target.value as TriState)} className="rounded border border-neutral-300 bg-white px-1 py-0.5 text-sm">
               <option value="unset">No change</option>
               <option value="on">On</option>
               <option value="off">Off</option>
             </select>
             <label>Italic</label>
-            <select value={italic} onChange={(e) => setItalic(e.target.value as TriState)} className="rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-sm">
+            <select value={italic} onChange={(e) => setItalic(e.target.value as TriState)} className="rounded border border-neutral-300 bg-white px-1 py-0.5 text-sm">
               <option value="unset">No change</option>
               <option value="on">On</option>
               <option value="off">Off</option>
             </select>
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
             Size
             <input
               type="number"
@@ -199,17 +155,17 @@ export function FormattingPanel({ fileId, activeSheet, onApplied, onPreview }: F
               value={fontSize}
               onChange={(e) => setFontSize(e.target.value)}
               placeholder="e.g. 14"
-              className="w-20 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+              className="w-20 rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
             />
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
             <input type="checkbox" checked={useFontColor} onChange={(e) => setUseFontColor(e.target.checked)} />
             Font color
             {useFontColor ? (
               <input type="color" value={fontColor} onChange={(e) => setFontColor(e.target.value)} />
             ) : null}
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-200">
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
             <input type="checkbox" checked={useFillColor} onChange={(e) => setUseFillColor(e.target.checked)} />
             Fill color
             {useFillColor ? (
@@ -219,11 +175,11 @@ export function FormattingPanel({ fileId, activeSheet, onApplied, onPreview }: F
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-300">Number format</p>
+          <p className="text-sm font-medium text-neutral-700">Number format</p>
           <select
             value={numberFormatPreset}
             onChange={(e) => setNumberFormatPreset(e.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+            className="w-full rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
           >
             {NUMBER_FORMAT_PRESETS.map((preset) => (
               <option key={preset.value} value={preset.value}>
@@ -237,16 +193,16 @@ export function FormattingPanel({ fileId, activeSheet, onApplied, onPreview }: F
               value={customNumberFormat}
               onChange={(e) => setCustomNumberFormat(e.target.value)}
               placeholder="e.g. #,##0"
-              className="block w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+              className="block w-full rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
             />
           ) : null}
 
-          <p className="pt-2 text-sm font-medium text-slate-300">Alignment</p>
-          <div className="flex items-center gap-3 text-sm text-slate-200">
+          <p className="pt-2 text-sm font-medium text-neutral-700">Alignment</p>
+          <div className="flex items-center gap-3 text-sm text-neutral-800">
             <select
               value={horizontalAlignment}
               onChange={(e) => setHorizontalAlignment(e.target.value)}
-              className="rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-sm"
+              className="rounded border border-neutral-300 bg-white px-1 py-0.5 text-sm"
             >
               <option value="">Horizontal: no change</option>
               <option value="left">Left</option>
@@ -257,7 +213,7 @@ export function FormattingPanel({ fileId, activeSheet, onApplied, onPreview }: F
             <select
               value={verticalAlignment}
               onChange={(e) => setVerticalAlignment(e.target.value)}
-              className="rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-sm"
+              className="rounded border border-neutral-300 bg-white px-1 py-0.5 text-sm"
             >
               <option value="">Vertical: no change</option>
               <option value="top">Top</option>
@@ -266,12 +222,12 @@ export function FormattingPanel({ fileId, activeSheet, onApplied, onPreview }: F
             </select>
           </div>
 
-          <p className="pt-2 text-sm font-medium text-slate-300">Borders</p>
-          <div className="flex items-center gap-3 text-sm text-slate-200">
+          <p className="pt-2 text-sm font-medium text-neutral-700">Borders</p>
+          <div className="flex items-center gap-3 text-sm text-neutral-800">
             <select
               value={borderStyle}
               onChange={(e) => setBorderStyle(e.target.value)}
-              className="rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-sm"
+              className="rounded border border-neutral-300 bg-white px-1 py-0.5 text-sm"
             >
               <option value="">No change</option>
               <option value="thin">Thin</option>
@@ -283,38 +239,35 @@ export function FormattingPanel({ fileId, activeSheet, onApplied, onPreview }: F
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
-          disabled={isRunning || !hasAnyStyle || !targetIsValid}
-          onClick={() => run(false)}
-          className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={isRunning || !hasAnyStyle}
+          onClick={() => handleRun(false)}
+          className="rounded border border-neutral-300 bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isRunning ? "Working..." : "Preview"}
         </button>
         <button
           type="button"
           disabled={isRunning || !result}
-          onClick={() => run(true)}
-          className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+          onClick={() => handleRun(true)}
+          className="rounded bg-excel-green px-4 py-2 text-sm font-semibold text-white transition hover:bg-excel-greenDark disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500"
         >
           Apply (write new file)
         </button>
         {downloadUrl ? (
-          <a
-            href={downloadUrl}
-            className="text-sm font-medium text-cyan-400 underline hover:text-cyan-300"
-          >
+          <a href={downloadUrl} className="text-sm font-medium text-excel-green underline hover:text-excel-greenDark">
             Download formatted .xlsx
           </a>
         ) : null}
       </div>
 
-      {error ? <p className="mt-4 text-sm text-rose-400">{error}</p> : null}
+      {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
 
       {result ? (
-        <p className="mt-4 text-sm text-slate-300">
-          Applied to <span className="font-medium text-slate-100">{result.range_applied}</span> —{" "}
+        <p className="mt-4 text-sm text-neutral-700">
+          Applied to <span className="font-medium text-neutral-900">{result.range_applied}</span> —{" "}
           {result.cells_formatted} cell(s) formatted.
         </p>
       ) : null}
