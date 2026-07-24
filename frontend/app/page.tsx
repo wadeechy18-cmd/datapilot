@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { FormulaBar } from "@/components/FormulaBar";
 import { Ribbon } from "@/components/ribbon/Ribbon";
 import { SheetGrid, type CellStyleOverride } from "@/components/SheetGrid";
 import { StatusBar } from "@/components/StatusBar";
 import { UploadForm } from "@/components/UploadForm";
+import { useFileHistory } from "@/hooks/useFileHistory";
 import { apiFetch } from "@/lib/api";
 import { clampSelection, type SelectionRange } from "@/lib/range";
 import type { WorkbookSummary } from "@/lib/types";
@@ -24,6 +25,7 @@ export default function Home() {
   const [activeSheet, setActiveSheetState] = useState<string | null>(null);
   const [styleOverride, setStyleOverride] = useState<CellStyleOverride | null>(null);
   const [selection, setSelection] = useState<SelectionRange>(A1_SELECTION);
+  const history = useFileHistory();
 
   const setActiveSheet = (sheetName: string) => {
     setStyleOverride(null);
@@ -75,6 +77,7 @@ export default function Home() {
         body: formData,
       });
       setSelectedFile(null);
+      history.reset(uploadPayload.file_id);
       await loadWorkbook(uploadPayload.file_id, { resetSelection: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error.");
@@ -85,10 +88,54 @@ export default function Home() {
 
   const handleEngineCommitted = (newFileId: string) => {
     setError(null);
+    history.record(newFileId);
     loadWorkbook(newFileId, { resetSelection: false }).catch((err) => {
       setError(err instanceof Error ? err.message : "Unexpected error.");
     });
   };
+
+  const handleUndo = () => {
+    const fileId = history.undo();
+    if (!fileId) return;
+    setError(null);
+    loadWorkbook(fileId, { resetSelection: false }).catch((err) => {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    });
+  };
+
+  const handleRedo = () => {
+    const fileId = history.redo();
+    if (!fileId) return;
+    setError(null);
+    loadWorkbook(fileId, { resetSelection: false }).catch((err) => {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    });
+  };
+
+  // Ref indirection so the window-level listener can be attached once on mount
+  // while always calling the latest handlers (which close over current history state).
+  const undoRedoRef = useRef({ undo: handleUndo, redo: handleRedo });
+  undoRedoRef.current = { undo: handleUndo, redo: handleRedo };
+
+  useEffect(() => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+
+      if (event.key === "z" || event.key === "Z") {
+        event.preventDefault();
+        if (event.shiftKey) undoRedoRef.current.redo();
+        else undoRedoRef.current.undo();
+      } else if (event.key === "y" || event.key === "Y") {
+        event.preventDefault();
+        undoRedoRef.current.redo();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const currentSheet = workbook?.sheets.find((sheet) => sheet.name === activeSheet) ?? null;
 
@@ -168,6 +215,10 @@ export default function Home() {
               isUploading={isUploading}
               onFileChange={setSelectedFile}
               onUpload={handleUpload}
+              canUndo={history.canUndo}
+              canRedo={history.canRedo}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
             />
           </>
         ) : null}

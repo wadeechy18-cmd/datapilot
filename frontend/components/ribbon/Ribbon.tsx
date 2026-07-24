@@ -33,6 +33,10 @@ type RibbonProps = {
   isUploading: boolean;
   onFileChange: (file: File | null) => void;
   onUpload: (event: FormEvent<HTMLFormElement>) => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
 };
 
 export function Ribbon({
@@ -47,11 +51,37 @@ export function Ribbon({
   isUploading,
   onFileChange,
   onUpload,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
 }: RibbonProps) {
   const [activeTab, setActiveTab] = useState<RibbonTabId>("home");
 
   return (
     <div className="rounded border border-excel-gridline bg-white shadow-sm">
+      <div className="flex items-center gap-1 border-b border-excel-gridline bg-neutral-50 px-2 py-1">
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+          aria-label="Undo"
+          className="rounded px-2 py-1 text-sm text-neutral-700 hover:bg-neutral-200 disabled:cursor-not-allowed disabled:text-neutral-300 disabled:hover:bg-transparent"
+        >
+          ↶ Undo
+        </button>
+        <button
+          type="button"
+          onClick={onRedo}
+          disabled={!canRedo}
+          title="Redo (Ctrl+Y)"
+          aria-label="Redo"
+          className="rounded px-2 py-1 text-sm text-neutral-700 hover:bg-neutral-200 disabled:cursor-not-allowed disabled:text-neutral-300 disabled:hover:bg-transparent"
+        >
+          ↷ Redo
+        </button>
+      </div>
       <div className="flex border-b border-excel-gridline">
         {TABS.map((tab) => {
           const isActive = tab.id === activeTab;
