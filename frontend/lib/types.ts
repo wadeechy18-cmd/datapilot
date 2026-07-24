@@ -163,3 +163,13 @@ export type SortResponse = {
   has_header: boolean;
   row_count: number;
 };
+
+export type AISummaryRequest = {
+  sheet_name?: string;
+};
+
+export type AISummaryResponse = {
+  file_id: string;
+  sheet_name: string;
+  summary: string;
+};

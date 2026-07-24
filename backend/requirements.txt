@@ -20,3 +20,11 @@ httpx==0.27.2
 
 # --- Added in later milestones (not used yet) ---
 # pandas, xlsxwriter, numpy -> Workbook Reader / engine milestones
+
+# --- Phase 3: AI (Gemini calls via httpx, see app/ai/) ---
+# truststore makes Python's ssl module verify against the OS-native trust
+# store instead of certifi's bundled list -- needed on machines where a
+# corporate/security-software root CA is trusted by Windows but isn't in
+# certifi's independent bundle (otherwise every outbound HTTPS call to the
+# AI provider fails with CERTIFICATE_VERIFY_FAILED).
+truststore==0.10.4

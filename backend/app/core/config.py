@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 25
     ALLOWED_UPLOAD_EXTENSIONS: tuple[str, ...] = (".xlsx",)
 
+    # AI (Phase 3) -- provider-agnostic by design, see app/ai/provider.py.
+    # Switching providers is meant to be a pure env-var change, never a
+    # business-logic edit.
+    AI_PROVIDER: str = "gemini"
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-flash-latest"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

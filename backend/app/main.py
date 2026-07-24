@@ -6,10 +6,19 @@ here — each router delegates to a service, and this file only registers
 routers as they're built out milestone by milestone.
 """
 
+import truststore
+
+# Must run before anything else opens an SSL connection (e.g. the Gemini
+# calls in app/ai/gemini_provider.py): makes Python's ssl module verify
+# against the OS-native trust store instead of certifi's bundled list,
+# needed when a corporate/security-software root CA is trusted by the OS
+# but isn't in certifi's independent bundle.
+truststore.inject_into_ssl()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import chart, cleaning, export, formatting, formula, health, rows_columns, sort, upload, workbook
+from app.api import ai_summary, chart, cleaning, export, formatting, formula, health, rows_columns, sort, upload, workbook
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -39,6 +48,7 @@ app.include_router(chart.router, prefix=settings.API_V1_PREFIX)
 app.include_router(export.router, prefix=settings.API_V1_PREFIX)
 app.include_router(rows_columns.router, prefix=settings.API_V1_PREFIX)
 app.include_router(sort.router, prefix=settings.API_V1_PREFIX)
+app.include_router(ai_summary.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")

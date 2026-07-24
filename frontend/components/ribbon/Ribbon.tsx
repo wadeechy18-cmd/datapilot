@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 
+import { AITab } from "@/components/ribbon/AITab";
 import { DataTab } from "@/components/ribbon/DataTab";
 import { FileMenu } from "@/components/ribbon/FileMenu";
 import { FormulasTab } from "@/components/ribbon/FormulasTab";
@@ -11,7 +12,7 @@ import type { CellStyleOverride } from "@/components/SheetGrid";
 import type { SelectionRange } from "@/lib/range";
 import type { SheetSummary } from "@/lib/types";
 
-type RibbonTabId = "file" | "home" | "insert" | "formulas" | "data";
+type RibbonTabId = "file" | "home" | "insert" | "formulas" | "data" | "ai";
 
 const TABS: { id: RibbonTabId; label: string }[] = [
   { id: "file", label: "File" },
@@ -19,6 +20,7 @@ const TABS: { id: RibbonTabId; label: string }[] = [
   { id: "insert", label: "Insert" },
   { id: "formulas", label: "Formulas" },
   { id: "data", label: "Data" },
+  { id: "ai", label: "AI" },
 ];
 
 type RibbonProps = {
@@ -143,6 +145,7 @@ export function Ribbon({
           onCommitted={onEngineCommitted}
         />
       ) : null}
+      {activeTab === "ai" ? <AITab fileId={fileId} activeSheet={activeSheet} /> : null}
     </div>
   );
 }
