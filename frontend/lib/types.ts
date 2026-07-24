@@ -173,3 +173,20 @@ export type AISummaryResponse = {
   sheet_name: string;
   summary: string;
 };
+
+export type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type ChatRequest = {
+  sheet_name: string;
+  selection?: string | null;
+  messages: ChatMessage[];
+};
+
+export type ChatResponse = {
+  reply: string;
+  new_file_id: string | null;
+  engine: string | null;
+};

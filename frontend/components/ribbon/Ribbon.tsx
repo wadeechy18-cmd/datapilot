@@ -145,7 +145,9 @@ export function Ribbon({
           onCommitted={onEngineCommitted}
         />
       ) : null}
-      {activeTab === "ai" ? <AITab fileId={fileId} activeSheet={activeSheet} /> : null}
+      {activeTab === "ai" ? (
+        <AITab fileId={fileId} activeSheet={activeSheet} selection={selection} onApplied={onEngineCommitted} />
+      ) : null}
     </div>
   );
 }

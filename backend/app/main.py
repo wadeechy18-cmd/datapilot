@@ -18,7 +18,7 @@ truststore.inject_into_ssl()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ai_summary, chart, cleaning, export, formatting, formula, health, rows_columns, sort, upload, workbook
+from app.api import ai_chat, ai_summary, chart, cleaning, export, formatting, formula, health, rows_columns, sort, upload, workbook
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -49,6 +49,7 @@ app.include_router(export.router, prefix=settings.API_V1_PREFIX)
 app.include_router(rows_columns.router, prefix=settings.API_V1_PREFIX)
 app.include_router(sort.router, prefix=settings.API_V1_PREFIX)
 app.include_router(ai_summary.router, prefix=settings.API_V1_PREFIX)
+app.include_router(ai_chat.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")
