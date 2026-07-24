@@ -9,6 +9,14 @@ import type { FormulaFunction, FormulaRequest, FormulaResponse } from "@/lib/typ
 
 type Mode = "template" | "function";
 
+const FORMULA_FUNCTION_INFO: Record<FormulaFunction, string> = {
+  SUM: "Adds up every number in the selected range.",
+  AVERAGE: "Calculates the mean of every number in the selected range.",
+  COUNT: "Counts how many numeric values are in the selected range.",
+  MIN: "Finds the smallest number in the selected range.",
+  MAX: "Finds the largest number in the selected range.",
+};
+
 type FormulasTabProps = {
   fileId: string;
   activeSheet: string;
@@ -100,17 +108,18 @@ export function FormulasTab({ fileId, activeSheet, selection, onApplied }: Formu
                 onChange={(e) => setFn(e.target.value as FormulaFunction)}
                 className="mt-1 block rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
               >
-                <option value="SUM">SUM</option>
-                <option value="AVERAGE">AVERAGE</option>
-                <option value="COUNT">COUNT</option>
-                <option value="MIN">MIN</option>
-                <option value="MAX">MAX</option>
+                {(Object.keys(FORMULA_FUNCTION_INFO) as FormulaFunction[]).map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
               </select>
             </label>
             <p className="text-sm text-neutral-800">
               Writes to: <span className="font-medium text-neutral-900">{destinationCell ?? "—"}</span>
             </p>
           </div>
+          <p className="text-sm italic text-neutral-500">{FORMULA_FUNCTION_INFO[fn]}</p>
         </div>
       )}
 

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
+import { CommandBar } from "@/components/CommandBar";
 import { FormulaBar } from "@/components/FormulaBar";
 import { Ribbon } from "@/components/ribbon/Ribbon";
 import { SheetGrid, type CellStyleOverride } from "@/components/SheetGrid";
@@ -179,6 +180,12 @@ export default function Home() {
                 <p className="break-all font-mono text-xs text-neutral-500">{workbook.file_id}</p>
               </div>
               <div className="mt-4 space-y-4">
+                <CommandBar
+                  fileId={workbook.file_id}
+                  activeSheet={activeSheet}
+                  selection={selection}
+                  onApplied={handleEngineCommitted}
+                />
                 <StatusBar
                   sheetNames={workbook.sheet_names}
                   activeSheet={activeSheet}
