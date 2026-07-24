@@ -135,7 +135,13 @@ export function Ribbon({
         <FormulasTab fileId={fileId} activeSheet={activeSheet} selection={selection} onApplied={onEngineCommitted} />
       ) : null}
       {activeTab === "data" ? (
-        <DataTab fileId={fileId} sheetNames={sheetNames} activeSheet={activeSheet} onCommitted={onEngineCommitted} />
+        <DataTab
+          fileId={fileId}
+          sheetNames={sheetNames}
+          activeSheet={activeSheet}
+          selection={selection}
+          onCommitted={onEngineCommitted}
+        />
       ) : null}
     </div>
   );

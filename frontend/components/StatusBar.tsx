@@ -34,7 +34,7 @@ export function StatusBar({ sheetNames, activeSheet, onSelect, sheet, selection 
         ) : null}
         <span className="text-neutral-400">|</span>
         <span>
-          Showing {sheet.preview_rows.length} of {sheet.row_count} row(s), {sheet.column_count} column(s)
+          {sheet.row_count} row(s), {sheet.column_count} column(s)
         </span>
       </div>
     </div>

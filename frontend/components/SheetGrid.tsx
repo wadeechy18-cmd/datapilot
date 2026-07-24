@@ -91,12 +91,14 @@ export function SheetGrid({ sheet, selection, onSelectionChange, styleOverride }
     startSelection({ row, col });
   };
 
-  const selectColumn = (col: number) => {
-    onSelectionChange({ kind: "range", anchor: { row: 1, col }, focus: { row: maxRow, col } });
+  const selectColumn = (col: number, shiftKey: boolean) => {
+    const anchorCol = shiftKey && selection.kind === "range" ? selection.anchor.col : col;
+    onSelectionChange({ kind: "range", anchor: { row: 1, col: anchorCol }, focus: { row: maxRow, col } });
   };
 
-  const selectRow = (row: number) => {
-    onSelectionChange({ kind: "range", anchor: { row, col: 1 }, focus: { row, col: maxCol } });
+  const selectRow = (row: number, shiftKey: boolean) => {
+    const anchorRow = shiftKey && selection.kind === "range" ? selection.anchor.row : row;
+    onSelectionChange({ kind: "range", anchor: { row: anchorRow, col: 1 }, focus: { row, col: maxCol } });
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -137,21 +139,21 @@ export function SheetGrid({ sheet, selection, onSelectionChange, styleOverride }
       onMouseLeave={() => {
         isDragging.current = false;
       }}
-      className="overflow-x-auto rounded border border-excel-gridline outline-none focus:ring-2 focus:ring-excel-green"
+      className="max-h-[60vh] overflow-auto rounded border border-excel-gridline outline-none focus:ring-2 focus:ring-excel-green"
     >
       <table className="min-w-full select-none border-collapse text-left text-sm">
         <thead>
           <tr>
             <th
               onClick={() => onSelectionChange({ kind: "all" })}
-              className="w-10 cursor-pointer border border-excel-headerBorder bg-excel-headerBg"
+              className="sticky left-0 top-0 z-20 w-10 cursor-pointer border border-excel-headerBorder bg-excel-headerBg"
             />
             {Array.from({ length: maxCol }, (_, i) => i + 1).map((col) => (
               <th
                 key={col}
-                onClick={() => selectColumn(col)}
+                onClick={(e) => selectColumn(col, e.shiftKey)}
                 className={
-                  "cursor-pointer whitespace-nowrap border border-excel-headerBorder px-3 py-1 text-center font-normal text-neutral-600 " +
+                  "sticky top-0 z-10 cursor-pointer whitespace-nowrap border border-excel-headerBorder px-3 py-1 text-center font-normal text-neutral-600 " +
                   (bounds && col >= bounds.minCol && col <= bounds.maxCol ? "bg-excel-green/20 font-semibold" : "bg-excel-headerBg")
                 }
               >
@@ -164,9 +166,9 @@ export function SheetGrid({ sheet, selection, onSelectionChange, styleOverride }
           {Array.from({ length: maxRow }, (_, i) => i + 1).map((row) => (
             <tr key={row}>
               <th
-                onClick={() => selectRow(row)}
+                onClick={(e) => selectRow(row, e.shiftKey)}
                 className={
-                  "w-10 cursor-pointer whitespace-nowrap border border-excel-headerBorder px-2 py-1 text-center font-normal text-neutral-600 " +
+                  "sticky left-0 z-10 w-10 cursor-pointer whitespace-nowrap border border-excel-headerBorder px-2 py-1 text-center font-normal text-neutral-600 " +
                   (bounds && row >= bounds.minRow && row <= bounds.maxRow ? "bg-excel-green/20 font-semibold" : "bg-excel-headerBg")
                 }
               >

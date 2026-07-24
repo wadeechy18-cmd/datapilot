@@ -9,7 +9,7 @@ routers as they're built out milestone by milestone.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import chart, cleaning, export, formatting, formula, health, upload, workbook
+from app.api import chart, cleaning, export, formatting, formula, health, rows_columns, sort, upload, workbook
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -37,6 +37,8 @@ app.include_router(formatting.router, prefix=settings.API_V1_PREFIX)
 app.include_router(formula.router, prefix=settings.API_V1_PREFIX)
 app.include_router(chart.router, prefix=settings.API_V1_PREFIX)
 app.include_router(export.router, prefix=settings.API_V1_PREFIX)
+app.include_router(rows_columns.router, prefix=settings.API_V1_PREFIX)
+app.include_router(sort.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")

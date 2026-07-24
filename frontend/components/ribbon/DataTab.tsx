@@ -1,9 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useEngineAction } from "@/hooks/useEngineAction";
-import type { CleaningRequest, CleaningResponse, FillNullsStrategy } from "@/lib/types";
+import { columnIndexToLetters, selectionBounds, type SelectionRange } from "@/lib/range";
+import type {
+  CleaningRequest,
+  CleaningResponse,
+  RowColumnReference,
+  RowColumnRequest,
+  RowColumnResponse,
+  RowColumnTarget,
+  SortRequest,
+  SortResponse,
+} from "@/lib/types";
 
 type NullHandling = "none" | "drop" | "fill";
 
@@ -11,10 +21,272 @@ type DataTabProps = {
   fileId: string;
   sheetNames: string[];
   activeSheet: string;
+  selection: SelectionRange;
   onCommitted: (newFileId: string) => void;
 };
 
-export function DataTab({ fileId, sheetNames, activeSheet, onCommitted }: DataTabProps) {
+function RowsColumnsSection({
+  fileId,
+  activeSheet,
+  selection,
+  onCommitted,
+}: {
+  fileId: string;
+  activeSheet: string;
+  selection: SelectionRange;
+  onCommitted: (newFileId: string) => void;
+}) {
+  const [target, setTarget] = useState<RowColumnTarget>("row");
+  const [action, setAction] = useState<"insert" | "delete">("insert");
+  const [reference, setReference] = useState<RowColumnReference>("above");
+
+  const { isRunning, result, error, run } = useEngineAction<RowColumnRequest, RowColumnResponse>(
+    `/workbook/${fileId}/rows-columns`,
+    onCommitted
+  );
+
+  const bounds = selectionBounds(selection);
+
+  // Insert anchors on the near edge of the selection in the requested
+  // direction (top for "above", bottom for "below", etc); delete always
+  // targets the whole selection span, so a multi-row/column selection
+  // removes all of it in one action.
+  const position = bounds
+    ? action === "insert"
+      ? reference === "above" || reference === "left"
+        ? target === "row"
+          ? bounds.minRow
+          : bounds.minCol
+        : target === "row"
+          ? bounds.maxRow
+          : bounds.maxCol
+      : target === "row"
+        ? bounds.minRow
+        : bounds.minCol
+    : null;
+  const count = bounds ? (target === "row" ? bounds.maxRow - bounds.minRow + 1 : bounds.maxCol - bounds.minCol + 1) : 1;
+
+  const targetLabel = (() => {
+    if (!bounds) return "—";
+    if (target === "row") {
+      return bounds.minRow === bounds.maxRow ? `row ${bounds.minRow}` : `rows ${bounds.minRow}-${bounds.maxRow}`;
+    }
+    const startLetter = columnIndexToLetters(bounds.minCol);
+    const endLetter = columnIndexToLetters(bounds.maxCol);
+    return startLetter === endLetter ? `column ${startLetter}` : `columns ${startLetter}-${endLetter}`;
+  })();
+
+  const buildRequest = (): RowColumnRequest => ({
+    sheet_name: activeSheet,
+    action,
+    target,
+    position: position ?? 1,
+    reference: action === "insert" ? reference : undefined,
+    count: action === "delete" ? count : 1,
+  });
+
+  useEffect(() => {
+    setReference(target === "row" ? "above" : "left");
+  }, [target]);
+
+  const isReady = bounds !== null;
+
+  return (
+    <div className="border-t border-excel-gridline pt-4">
+      <p className="text-sm font-medium text-neutral-700">Rows &amp; Columns</p>
+      <p className="mt-1 text-sm text-neutral-500">
+        {isReady ? (
+          <>
+            {action === "insert" ? "Insert a " : "Delete "}
+            <span className="font-medium text-neutral-800">{target}</span>
+            {action === "insert" ? (
+              <>
+                {" "}
+                {reference} <span className="font-medium text-neutral-800">{targetLabel}</span>
+              </>
+            ) : (
+              <> — <span className="font-medium text-neutral-800">{targetLabel}</span></>
+            )}
+          </>
+        ) : (
+          "Select a specific row, column, or range in the grid first (not the whole sheet)."
+        )}
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-neutral-800">
+        <label className="flex items-center gap-2">
+          <input type="radio" name="rc-action" checked={action === "insert"} onChange={() => setAction("insert")} />
+          Insert
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" name="rc-action" checked={action === "delete"} onChange={() => setAction("delete")} />
+          Delete
+        </label>
+
+        <span className="mx-2 text-neutral-300">|</span>
+
+        <label className="flex items-center gap-2">
+          <input type="radio" name="rc-target" checked={target === "row"} onChange={() => setTarget("row")} />
+          Row
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" name="rc-target" checked={target === "column"} onChange={() => setTarget("column")} />
+          Column
+        </label>
+
+        {action === "insert" ? (
+          <>
+            <span className="mx-2 text-neutral-300">|</span>
+            {target === "row" ? (
+              <>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="rc-reference" checked={reference === "above"} onChange={() => setReference("above")} />
+                  Above
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="rc-reference" checked={reference === "below"} onChange={() => setReference("below")} />
+                  Below
+                </label>
+              </>
+            ) : (
+              <>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="rc-reference" checked={reference === "left"} onChange={() => setReference("left")} />
+                  Left
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="rc-reference" checked={reference === "right"} onChange={() => setReference("right")} />
+                  Right
+                </label>
+              </>
+            )}
+          </>
+        ) : null}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-3">
+        <button
+          type="button"
+          disabled={isRunning || !isReady}
+          onClick={() => run(buildRequest(), false)}
+          className="rounded border border-neutral-300 bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isRunning ? "Working..." : "Preview"}
+        </button>
+        <button
+          type="button"
+          disabled={isRunning || !result}
+          onClick={() => run(buildRequest(), true)}
+          className="rounded bg-excel-green px-4 py-2 text-sm font-semibold text-white transition hover:bg-excel-greenDark disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500"
+        >
+          Apply (write new file)
+        </button>
+      </div>
+
+      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      {result ? (
+        <p className="mt-3 text-sm text-neutral-700">
+          New sheet size: {result.new_row_count} row(s) × {result.new_column_count} column(s).
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function SortSection({
+  fileId,
+  activeSheet,
+  selection,
+  onCommitted,
+}: {
+  fileId: string;
+  activeSheet: string;
+  selection: SelectionRange;
+  onCommitted: (newFileId: string) => void;
+}) {
+  const [column, setColumn] = useState("A");
+  const [ascending, setAscending] = useState(true);
+  const [hasHeader, setHasHeader] = useState(true);
+
+  const { isRunning, result, error, run } = useEngineAction<SortRequest, SortResponse>(
+    `/workbook/${fileId}/sort`,
+    onCommitted
+  );
+
+  useEffect(() => {
+    const bounds = selectionBounds(selection);
+    if (bounds) setColumn(columnIndexToLetters(bounds.minCol));
+  }, [selection]);
+
+  const buildRequest = (): SortRequest => ({
+    sheet_name: activeSheet,
+    column: column.trim().toUpperCase(),
+    ascending,
+    has_header: hasHeader,
+  });
+
+  const isReady = /^[A-Za-z]+$/.test(column.trim());
+
+  return (
+    <div className="border-t border-excel-gridline pt-4">
+      <p className="text-sm font-medium text-neutral-700">Sort</p>
+      <p className="mt-1 text-sm text-neutral-500">
+        Reorders sheet <span className="font-medium text-neutral-800">{activeSheet}</span>&apos;s data rows by one
+        column. Data-only: cell styling on that sheet is not preserved through a sort.
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-neutral-800">
+        <label className="flex items-center gap-2">
+          Column
+          <input
+            type="text"
+            value={column}
+            onChange={(e) => setColumn(e.target.value)}
+            className="w-16 rounded border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
+          />
+        </label>
+
+        <label className="flex items-center gap-2">
+          <input type="radio" name="sort-direction" checked={ascending} onChange={() => setAscending(true)} />
+          Ascending
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" name="sort-direction" checked={!ascending} onChange={() => setAscending(false)} />
+          Descending
+        </label>
+
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={hasHeader} onChange={(e) => setHasHeader(e.target.checked)} />
+          Has header row (keep row 1 pinned)
+        </label>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-3">
+        <button
+          type="button"
+          disabled={isRunning || !isReady}
+          onClick={() => run(buildRequest(), false)}
+          className="rounded border border-neutral-300 bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isRunning ? "Working..." : "Preview"}
+        </button>
+        <button
+          type="button"
+          disabled={isRunning || !result}
+          onClick={() => run(buildRequest(), true)}
+          className="rounded bg-excel-green px-4 py-2 text-sm font-semibold text-white transition hover:bg-excel-greenDark disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500"
+        >
+          Apply (write new file)
+        </button>
+      </div>
+
+      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      {result ? <p className="mt-3 text-sm text-neutral-700">Sorted {result.row_count} row(s).</p> : null}
+    </div>
+  );
+}
+
+export function DataTab({ fileId, sheetNames, activeSheet, selection, onCommitted }: DataTabProps) {
   const [applyToAllSheets, setApplyToAllSheets] = useState(false);
   const [trimWhitespace, setTrimWhitespace] = useState(false);
   const [dropEmptyRows, setDropEmptyRows] = useState(false);
@@ -185,6 +457,9 @@ export function DataTab({ fileId, sheetNames, activeSheet, onCommitted }: DataTa
           </div>
         </div>
       ) : null}
+
+      <RowsColumnsSection fileId={fileId} activeSheet={activeSheet} selection={selection} onCommitted={onCommitted} />
+      <SortSection fileId={fileId} activeSheet={activeSheet} selection={selection} onCommitted={onCommitted} />
     </div>
   );
 }

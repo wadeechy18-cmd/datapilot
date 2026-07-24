@@ -121,3 +121,45 @@ export type ChartResponse = {
   anchor: string;
   title: string | null;
 };
+
+export type RowColumnAction = "insert" | "delete";
+export type RowColumnTarget = "row" | "column";
+export type RowColumnReference = "above" | "below" | "left" | "right";
+
+export type RowColumnRequest = {
+  sheet_name: string;
+  action: RowColumnAction;
+  target: RowColumnTarget;
+  position: number;
+  reference?: RowColumnReference;
+  count?: number;
+};
+
+export type RowColumnResponse = {
+  file_id: string;
+  new_file_id: string | null;
+  sheet_name: string;
+  action: RowColumnAction;
+  target: RowColumnTarget;
+  position: number;
+  count: number;
+  new_row_count: number;
+  new_column_count: number;
+};
+
+export type SortRequest = {
+  sheet_name: string;
+  column: string;
+  ascending?: boolean;
+  has_header?: boolean;
+};
+
+export type SortResponse = {
+  file_id: string;
+  new_file_id: string | null;
+  sheet_name: string;
+  column: string;
+  ascending: boolean;
+  has_header: boolean;
+  row_count: number;
+};

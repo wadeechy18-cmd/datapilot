@@ -145,6 +145,28 @@ def test_read_workbook_analysis_handles_nulls_and_mixed_types(tmp_path, monkeypa
     assert value_col["mean"] is None
 
 
+def test_read_workbook_returns_all_rows_uncapped(tmp_path, monkeypatch):
+    monkeypatch.setattr(get_settings(), "STORAGE_DIR", tmp_path)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+    ws.append(["N"])
+    for i in range(15):
+        ws.append([i])
+    buffer = io.BytesIO()
+    wb.save(buffer)
+
+    file_id = _upload(buffer.getvalue())
+
+    response = client.get(f"/api/v1/workbook/{file_id}")
+
+    assert response.status_code == 200
+    sheet1 = next(s for s in response.json()["sheets"] if s["name"] == "Sheet1")
+    assert len(sheet1["preview_rows"]) == 15
+    assert sheet1["preview_rows"][-1] == [14]
+
+
 def test_read_workbook_missing_file_returns_404(tmp_path, monkeypatch):
     monkeypatch.setattr(get_settings(), "STORAGE_DIR", tmp_path)
 

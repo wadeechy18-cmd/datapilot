@@ -17,6 +17,9 @@ from openpyxl.worksheet.worksheet import Worksheet
 from app.models.workbook import SheetInfo, WorkbookInfo
 from app.utils.json_safe import to_json_safe
 
+# No longer used to cap the main reader's preview_rows (the grid shows every
+# row now) -- kept as the sample size for the Cleaning engine's own
+# pending-change preview response, a separate, smaller concern.
 PREVIEW_ROW_COUNT = 10
 
 
@@ -38,8 +41,7 @@ def _read_sheet(worksheet: Worksheet) -> SheetInfo:
     text_cells = 0
 
     for row in rows_iter:
-        if len(preview_rows) < PREVIEW_ROW_COUNT:
-            preview_rows.append([to_json_safe(v) for v in row])
+        preview_rows.append([to_json_safe(v) for v in row])
 
         for value in row:
             if value is None:
