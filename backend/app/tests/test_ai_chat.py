@@ -23,6 +23,18 @@ class ScriptedAIProvider(AIProvider):
         return self._responses.pop(0)
 
 
+class CapturingAIProvider(AIProvider):
+    """Records the prompt it was sent, then returns a fixed reply."""
+
+    def __init__(self, reply: str = '{"action": "reply", "message": "ok"}'):
+        self._reply = reply
+        self.last_prompt: str | None = None
+
+    async def generate_text(self, prompt: str) -> str:
+        self.last_prompt = prompt
+        return self._reply
+
+
 def _upload_sheets(sheets: dict[str, list[list]]) -> str:
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
@@ -179,6 +191,20 @@ def test_chat_falls_back_to_reply_on_schema_validation_failure(tmp_path, monkeyp
     # Confirm nothing was written at all.
     original = _load_stored_workbook(tmp_path, file_id)
     assert [c.value for c in original["Data"]["A"]] == ["Name", "Alice"]
+
+
+def test_chat_prompt_includes_computed_insights(tmp_path, monkeypatch):
+    monkeypatch.setattr(get_settings(), "STORAGE_DIR", tmp_path)
+    capturing = CapturingAIProvider()
+    monkeypatch.setattr(ai_chat_service, "get_ai_provider", lambda: capturing)
+
+    file_id = _upload_sheets({"Data": [["Value"], [1], [2], [3], [4], [5]]})
+
+    _chat(file_id, "Data", "hello")
+
+    assert capturing.last_prompt is not None
+    assert "Computed findings" in capturing.last_prompt
+    assert "trends increasing" in capturing.last_prompt
 
 
 def test_chat_invalid_sheet_name_returns_400(tmp_path, monkeypatch):

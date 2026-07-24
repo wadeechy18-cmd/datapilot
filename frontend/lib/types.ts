@@ -190,3 +190,36 @@ export type ChatResponse = {
   new_file_id: string | null;
   engine: string | null;
 };
+
+export type InsightsRequest = {
+  sheet_name?: string | null;
+};
+
+export type ColumnOutliers = {
+  column: CellValue;
+  outlier_count: number;
+  lower_bound: number;
+  upper_bound: number;
+  sample_values: number[];
+};
+
+export type ColumnTrend = {
+  column: CellValue;
+  direction: "increasing" | "decreasing";
+  strength: number;
+};
+
+export type ColumnCorrelation = {
+  column_a: CellValue;
+  column_b: CellValue;
+  correlation: number;
+};
+
+export type InsightsResponse = {
+  file_id: string;
+  sheet_name: string;
+  duplicate_row_count: number;
+  outliers: ColumnOutliers[];
+  trends: ColumnTrend[];
+  correlations: ColumnCorrelation[];
+};

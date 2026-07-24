@@ -138,6 +138,24 @@ def test_summarize_prompt_omits_raw_row_and_text_data(tmp_path, monkeypatch):
     assert "mean=222.00" in capturing.last_prompt
 
 
+def test_summarize_prompt_includes_computed_insights(tmp_path, monkeypatch):
+    """The summary prompt should include real, locally-computed findings
+    (outliers/trends/duplicates/correlations) alongside column stats, not
+    just column aggregates -- this is what lets the AI narrate genuine
+    signals instead of guessing."""
+    monkeypatch.setattr(get_settings(), "STORAGE_DIR", tmp_path)
+    capturing = CapturingAIProvider()
+    monkeypatch.setattr(ai_summary_service, "get_ai_provider", lambda: capturing)
+
+    file_id = _upload_sheets({"Data": [["Value"], [1], [2], [3], [4], [5]]})
+
+    _summarize(file_id)
+
+    assert capturing.last_prompt is not None
+    assert "Computed findings" in capturing.last_prompt
+    assert "trends increasing" in capturing.last_prompt
+
+
 def test_summarize_invalid_sheet_returns_400(tmp_path, monkeypatch):
     monkeypatch.setattr(get_settings(), "STORAGE_DIR", tmp_path)
     monkeypatch.setattr(ai_summary_service, "get_ai_provider", lambda: FakeAIProvider("ok"))

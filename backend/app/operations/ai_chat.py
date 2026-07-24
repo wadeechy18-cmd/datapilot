@@ -26,6 +26,8 @@ from app.ai.provider import AIProvider
 from app.analysis.analyzer import analyze_workbook
 from app.models.ai_chat import ChatAction
 from app.models.analysis import ColumnAnalysis
+from app.models.insights import SheetInsights
+from app.operations.insights import compute_insights, format_insights_for_prompt
 from app.schemas.ai_chat import ChatMessage, ChatRequest
 from app.schemas.chart import ChartRequest
 from app.schemas.cleaning import CleaningRequest
@@ -92,7 +94,13 @@ def _format_history(messages: list[ChatMessage]) -> str:
     return "\n".join(f"{'User' if m.role == 'user' else 'Assistant'}: {m.content}" for m in messages)
 
 
-def _build_prompt(sheet_name: str, columns: list[ColumnAnalysis], selection: str | None, messages: list[ChatMessage]) -> str:
+def _build_prompt(
+    sheet_name: str,
+    columns: list[ColumnAnalysis],
+    insights: SheetInsights,
+    selection: str | None,
+    messages: list[ChatMessage],
+) -> str:
     column_lines = "\n".join(_format_column(c) for c in columns)
     selection_desc = selection or "whole sheet (no specific range selected)"
     history = _format_history(messages)
@@ -101,7 +109,9 @@ def _build_prompt(sheet_name: str, columns: list[ColumnAnalysis], selection: str
         "You are an assistant embedded in a spreadsheet tool for non-technical users "
         "(accountants, students, freelancers). You can answer questions about the sheet, "
         "or perform ONE action on it per turn. You are only ever given column-level "
-        "statistics below, never the actual cell data.\n\n"
+        "statistics and a list of computed findings below, never the actual cell data -- "
+        "when asked about patterns/outliers/trends, use the computed findings, don't "
+        "guess your own.\n\n"
         "Respond with ONLY a single JSON object and nothing else -- no markdown code "
         "fences, no explanation outside the JSON.\n\n"
         'To just answer or chat, respond exactly:\n{"action": "reply", "message": "<your answer>"}\n\n'
@@ -117,6 +127,7 @@ def _build_prompt(sheet_name: str, columns: list[ColumnAnalysis], selection: str
         f"Sheet: {sheet_name}\n"
         f"Selection: {selection_desc}\n"
         f"Columns:\n{column_lines}\n\n"
+        f"Computed findings:\n{format_insights_for_prompt(insights)}\n\n"
         f"Conversation so far:\n{history}\n"
         "Assistant:"
     )
@@ -138,10 +149,11 @@ async def interpret_message(
     provider: AIProvider,
     sheet_name: str,
     columns: list[ColumnAnalysis],
+    insights: SheetInsights,
     selection: str | None,
     messages: list[ChatMessage],
 ) -> ChatAction:
-    prompt = _build_prompt(sheet_name, columns, selection, messages[-_MAX_HISTORY_MESSAGES:])
+    prompt = _build_prompt(sheet_name, columns, insights, selection, messages[-_MAX_HISTORY_MESSAGES:])
     raw = await provider.generate_text(prompt)
 
     parsed = _parse_json_response(raw)
@@ -178,4 +190,5 @@ async def chat_with_workbook(file_id: str, path: Path, provider: AIProvider, req
     if sheet is None:
         raise SheetNotFoundError(f"Sheet '{request.sheet_name}' not found in workbook '{file_id}'.")
 
-    return await interpret_message(provider, sheet.name, sheet.columns, request.selection, request.messages)
+    insights = compute_insights(file_id, path, sheet.name)
+    return await interpret_message(provider, sheet.name, sheet.columns, insights, request.selection, request.messages)
