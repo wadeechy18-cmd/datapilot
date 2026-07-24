@@ -18,7 +18,7 @@ truststore.inject_into_ssl()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ai_chat, ai_summary, chart, cleaning, export, formatting, formula, health, insights, rows_columns, sort, upload, workbook
+from app.api import ai_chat, ai_summary, auth, chart, cleaning, export, formatting, formula, health, insights, rows_columns, sort, upload, workbook
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -39,6 +39,7 @@ app.add_middleware(
 
 # Routers are included here, one line per feature area, as they're added.
 app.include_router(health.router, prefix=settings.API_V1_PREFIX)
+app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(upload.router, prefix=settings.API_V1_PREFIX)
 app.include_router(workbook.router, prefix=settings.API_V1_PREFIX)
 app.include_router(cleaning.router, prefix=settings.API_V1_PREFIX)

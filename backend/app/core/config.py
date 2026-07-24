@@ -43,6 +43,26 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-flash-latest"
 
+    # Database (Phase 4) -- PostgreSQL, accessed via SQLAlchemy. Local dev
+    # only for now; a managed Postgres (e.g. a free tier) is a later,
+    # separately-scoped deployment decision.
+    DATABASE_URL: str = "postgresql+psycopg://excelai_app:@127.0.0.1:5432/excelai"
+
+    # Auth (Phase 4)
+    # JWT_SECRET_KEY has no safe default -- it must be set per environment.
+    JWT_SECRET_KEY: str = ""
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 60
+
+    # Email (Phase 4) -- abstract provider, see app/email/. "console" (the
+    # default) just logs the email so nothing paid/external is required in
+    # development; a real provider is a later, separately-scoped decision.
+    EMAIL_PROVIDER: str = "console"
+    FRONTEND_URL: str = "http://localhost:3000"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
