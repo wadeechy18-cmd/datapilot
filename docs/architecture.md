@@ -1,3 +1,10 @@
+> **Coverage note:** this file only has entries for Milestone 1 (Project
+> Foundation) and Milestone 3 (Workbook Reader) — it was never kept up to
+> date through the rest of Phase 1, Phase 2, or Phase 3. For what's
+> actually built today, see the README's roadmap/endpoint list instead;
+> treat everything below as historical design reasoning for those two
+> milestones specifically, not a current architecture map.
+
 # Architecture Notes — Milestone 1: Project Foundation
 
 ## Scope of this milestone
@@ -109,6 +116,12 @@ to mutate and re-save a workbook across multiple requests, not here.
 names, dimensions, headers, and up to 10 preview rows — enough for a UI
 to show "here's what you uploaded." Full-data loading, statistics, and
 anomaly detection are the Data Analyzer milestone's job, not this one's.
+
+*Superseded later (Phase 2 grid-cap removal milestone): the 10-row cap was
+removed from `preview_rows` once the frontend grid needed to show a whole
+sheet, not just a preview — the field name is unchanged, but it's no
+longer capped. `PREVIEW_ROW_COUNT` still exists, now used only by the
+Cleaning engine's own pending-change preview response.*
 
 **Cell values are normalized for JSON**, since openpyxl can return
 `datetime`/`Decimal` values that aren't directly serializable. This
